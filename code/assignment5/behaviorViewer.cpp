@@ -83,7 +83,10 @@ void BehaviorViewer::initializeGui()
 	TwAddVarRW(m_TwBehaviorBar, "Debug", TW_TYPE_BOOLCPP, &m_DebugDraw, "");
 	TwAddButton(m_TwBehaviorBar, "Reset", onResetCb, this, "");
 
+    TwAddVarRW(m_TwBehaviorBar, "K Seperation", TW_TYPE_DOUBLE, &BehaviorController::KSeparation, "");
+    TwAddVarRW(m_TwBehaviorBar, "K Alignment", TW_TYPE_DOUBLE, &BehaviorController::KAlignment, "");
     TwAddVarRW(m_TwBehaviorBar, "K Cohesion", TW_TYPE_DOUBLE, &BehaviorController::KCohesion, "");
+    TwAddVarRW(m_TwBehaviorBar, "K Arrival", TW_TYPE_DOUBLE, &BehaviorController::KArrival, "");
 
 	//TODO: Add your code here to create additional GUI Variables
 }

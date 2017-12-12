@@ -238,8 +238,6 @@ void BehaviorController::computeDynamics(vector<vec3>& state, vector<vec3>& cont
     // m_stateDot[2] = body acceleration = [ accelx 0 accelz]T for the 2D planar case
     // m_stateDot[3] = body angular acceleration = = [ 0 thetaDot2 0]T for the 2D planar case
 
-    /*mat3 rot = mat3();
-    rot.FromAxisAngle(vec3(0, 1, 0), m_state[ORI][1] * M_PI / 180.0f);*/
     stateDot[0] = state[VEL];
     stateDot[1] = state[3];
     stateDot[2] = accel;
