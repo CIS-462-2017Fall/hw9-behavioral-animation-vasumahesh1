@@ -17,7 +17,7 @@ double BehaviorController::gMaxAngularSpeed = 200.0;
 double BehaviorController::gMaxForce = 2000.0;  
 double BehaviorController::gMaxTorque = 2000.0;
 double BehaviorController::gKNeighborhood = 500.0;   
-double BehaviorController::gOriKv = 32.0;    
+double BehaviorController::gOriKv = 64.0;    
 double BehaviorController::gOriKp = 256.0;  
 double BehaviorController::gVelKv = 32.0;    
 double BehaviorController::gAgentRadius = 80.0;  
@@ -153,9 +153,12 @@ void BehaviorController::control(double deltaT)
 	if (mpActiveBehavior)
 	{ 
 		m_Vdesired = mpActiveBehavior->calcDesiredVel(this);
+        cout << "Desired Velocity: (" << m_Vdesired[0] << ", " << m_Vdesired[1] << ", " << m_Vdesired[2] << ")" << endl;
 		m_Vdesired[1] = 0;
 
         m_vd = m_Vdesired.Length();
+
+        double thetaD = atan2(m_Vdesired[2], m_Vdesired[0]);
 
 		//  force and torque inputs are computed from vd and thetad as follows:
 		//              Velocity P controller : force = mass * Kv * (vd - v)
@@ -164,30 +167,26 @@ void BehaviorController::control(double deltaT)
 
 		// TODO: insert your code here to compute m_force and m_torque
 
-        //m_thetad = atan2(m_Vdesired[_Z], m_Vdesired[_X]);
+        double thetaDifference = thetaD - m_state[ORI][1];
 
-        /*double cosVal = Dot(m_Vdesired, vec3(1, 0, 0)) / m_Vdesired.Length();
-        m_thetad = acos(cosVal);
+        ClampAngle(thetaDifference);
 
-        double thetaDTheta = m_thetad - m_Euler[1];
-        ClampAngle(thetaDTheta);*/
-
-        vec3 dirVelocity = vec3(m_Vdesired);
-        vec3 worldVelocity = vec3(m_Vel0);
-
-        dirVelocity.Normalize();
-        worldVelocity.Normalize();
-
-        double thetaDTheta = acos(Dot(dirVelocity, worldVelocity));
-
-        ClampAngle(thetaDTheta);
-
-        vec3 eulerTheta = vec3(0, thetaDTheta, 0);
+        double torque = gInertia * ((-gOriKv * m_state[AVEL][1]) + (gOriKp * thetaDifference));
 
         m_force = gMass * gVelKv * (m_Vdesired - m_Vel0);
-        m_torque = gInertia * ((-gOriKv * m_stateDot[1]) + (gOriKp * eulerTheta));
+        m_torque = vec3(0, torque, 0);
 
-        cout << "Torque HERE : " << m_torque[0] << m_torque[1] << m_torque[2] << endl;
+        if (m_torque.Length() > gMaxTorque)
+        {
+            m_torque = m_torque.Normalize() * gMaxTorque;
+        }
+
+        if (m_force.Length() > gMaxForce)
+        {
+            m_force = m_force.Normalize() * gMaxForce;
+        }
+
+        m_thetad = thetaD;
 
 		// when agent desired agent velocity and actual velocity < 2.0 then stop moving
 		if (m_vd < 2.0 &&  m_state[VEL][_Z] < 2.0)
@@ -202,7 +201,6 @@ void BehaviorController::control(double deltaT)
 		m_torque[1] = 0.0;
 	}
 
-    // m_force = vec3(0, 0, 0);
 
 	// set control inputs to current force and torque values
 	m_controlInput[0] = m_force;
@@ -226,8 +224,6 @@ void BehaviorController::computeDynamics(vector<vec3>& state, vector<vec3>& cont
 	vec3& force = controlInput[0];
 	vec3& torque = controlInput[1];
 
-    cout << "Torque IN : " << torque[0] << torque[1] << torque[2] << endl;
-
 	// Compute the stateDot vector given the values of the current state vector and control input vector
 	// TODO: add your code here
 
@@ -242,8 +238,10 @@ void BehaviorController::computeDynamics(vector<vec3>& state, vector<vec3>& cont
     // m_stateDot[2] = body acceleration = [ accelx 0 accelz]T for the 2D planar case
     // m_stateDot[3] = body angular acceleration = = [ 0 thetaDot2 0]T for the 2D planar case
 
-    stateDot[0] = m_state[2];
-    stateDot[1] = m_state[3];
+    /*mat3 rot = mat3();
+    rot.FromAxisAngle(vec3(0, 1, 0), m_state[ORI][1] * M_PI / 180.0f);*/
+    stateDot[0] = state[VEL];
+    stateDot[1] = state[3];
     stateDot[2] = accel;
     stateDot[3] = angAccel;
 
@@ -296,28 +294,17 @@ void BehaviorController::updateState(float deltaT, int integratorType)
 	m_Euler = m_state[ORI];
 	m_VelB = m_state[VEL];
 	m_AVelB = m_state[AVEL];
-
-    cout << "Torque: " << m_torque[0] << m_torque[1] << m_torque[2] << endl;
-    cout << "m_Euler: " << m_Euler[0] << m_Euler[1] << m_Euler[2] << endl;
-
-    double spd = m_VelB.Length();
-    // m_Vel0 = (m_Guide.getGlobalRotation() * m_VelB);
-    
-
-	//  Perform validation check to make sure all values are within MAX values
-	// TODO: add your code here
+    m_Vel0 = m_stateDot[0];
 
     if (m_VelB.Length() > gMaxSpeed)
     {
-        spd = gMaxSpeed;
+        m_VelB = gMaxSpeed * m_VelB.Normalize();
     }
 
-    m_Vel0 = vec3(spd * cos(m_Euler[1]), 0, spd * sin(m_Euler[1]));
-
-    //if (m_AVelB.Length() > gMaxAngularSpeed)
-    //{
-    //    return;
-    //}
+    if (m_AVelB.Length() > gMaxAngularSpeed)
+    {
+        m_AVelB = m_AVelB.Normalize() * gMaxAngularSpeed;
+    }
 
 	// update the guide orientation
 	// compute direction from nonzero velocity vector
